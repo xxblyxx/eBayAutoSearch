@@ -23,7 +23,7 @@ global con
 
 MAX_RETRIES = 5
 RESTART_TIME = 10
-numberOfHits = 15
+MAX_SEARCHRESULTS = 25 #number of search results to process scan
 
 class TooManyConnectionRetries(Exception):
     pass
@@ -64,7 +64,6 @@ def get_detail_data(soup, url):
     # Get title of item
     try:
         title = soup.find('h1', {'class':'x-item-title__mainTitle'}).get_text(strip=True)
-        #title = title.lstrip("Details about \xa0")
     except:
         title = 'exceptionDetected'
 
@@ -135,7 +134,17 @@ def itemIDExistInDB(itemID):
         return False
     return False
 
+def sendTelegramMessage(apikey, chatid, msg):
+    if apikey != "" and chatid != "":
+        try:
+            telebot.TeleBot(apikey, threaded=False).send_message(chatid,msg)
+        except telebot.apihelper.ApiTelegramException:
+            pass
+
 def scraper(url, apikey, chatid, sleep):
+    #send telegram message starting scan service
+    sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
+
     global con
     cursordb = con.cursor()
 
@@ -159,7 +168,7 @@ def scraper(url, apikey, chatid, sleep):
 
         #BeautifulSoupImplementation
         productList =[]
-        for link in products[0:numberOfHits]:
+        for link in products[0:MAX_SEARCHRESULTS]:
             
             #check link to see if in DB, if not get detail
             parsed_url = urlparse(link)
@@ -183,14 +192,14 @@ def scraper(url, apikey, chatid, sleep):
                 print(prodstr['title'])
                 print(prodstr['id'])
                 print(prodstr['price'])
-                print(prodstr['url'])
+                #print(prodstr['url'])
 
                 # If the user specified a telegram bot apikey + chatid, it will send the previously printed list as a text message (only if the previous line didn't produce an exception)
                 if apikey != "" and chatid != "":
                     try:
-                        print('telegramming')
                         telebot.TeleBot(apikey, threaded=False).send_message(chatid,
-                                                             prodstr['title'] 
+                                                             str(datetime.now())
+                                                             + "\n" + prodstr['title'] 
                                                              + "\n" + prodstr['price']
                                                              + "\n" + prodstr['url'])
                         # Telegram API limits the number of messages per second so we need to wait a little bit
