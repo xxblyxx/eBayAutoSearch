@@ -13,7 +13,8 @@ class GUI:
                 "telegramAPIKEY": self.apikeyentry.get(),
                 "telegramCHATID": self.chatidentry.get(),
                 "databaseFile": self.databaseentry.get(),
-                "sleep": self.sleepeentry.get()
+                "sleepDay": self.sleepDayeentry.get(),
+                "sleepNight": self.sleepNighteentry.get()
                 }
         with open(self.file_name, 'w') as config_file:
             json.dump(data, config_file)
@@ -24,7 +25,7 @@ class GUI:
     def __init__(self, file_name):
         self.file_name = file_name
         self.window = tk.Tk()
-        self.window.geometry('605x300')
+        self.window.geometry('905x600')
 
         urllabel = tk.Label(text="url")
         self.urlentry = tk.Entry(width=100, justify=tk.CENTER)
@@ -38,8 +39,11 @@ class GUI:
         chatidlabel = tk.Label(text="telegramCHATID")
         self.chatidentry = tk.Entry(width=100, justify="center")
 
-        sleeplabel = tk.Label(text="sleep")
-        self.sleepeentry = tk.Entry(width=100, justify="center")
+        sleepDaylabel = tk.Label(text="sleepDay")
+        self.sleepDayeentry = tk.Entry(width=100, justify="center")
+
+        sleepNightlabel = tk.Label(text="sleepNight")
+        self.sleepNighteentry = tk.Entry(width=100, justify="center")
 
         okbutton = tk.Button(self.window, text="OK", command=self.okclick)
         cancelbutton = tk.Button(self.window, text="Cancel", command=cancelclick)
@@ -56,11 +60,14 @@ class GUI:
         chatidlabel.grid(column=0, row=6)
         self.chatidentry.grid(column=0, row=7)
 
-        sleeplabel.grid(column=0, row=8)
-        self.sleepeentry.grid(column=0, row=9)
+        sleepDaylabel.grid(column=0, row=8)
+        self.sleepDayeentry.grid(column=0, row=9)
 
-        okbutton.grid(column=0, row=10)
-        cancelbutton.grid(column=0, row=11)
+        sleepNightlabel.grid(column=0, row=10)
+        self.sleepNighteentry.grid(column=0, row=11)
+
+        okbutton.grid(column=0, row=12)
+        cancelbutton.grid(column=0, row=13)
 
         if os.path.isfile(file_name):
             with open(file_name) as config_file:
@@ -69,10 +76,12 @@ class GUI:
                 self.apikeyentry.insert(0, config["telegramAPIKEY"])
                 self.chatidentry.insert(0, config["telegramCHATID"])
                 self.databaseentry.insert(0, config["databaseFile"])
-                self.sleepeentry.insert(0, config["sleep"])
+                self.sleepDayeentry.insert(0, config["sleepDay"])
+                self.sleepNighteentry.insert(0, config["sleepNight"])
             config_file.close()
         else:
             self.databaseentry.insert(0, "database.db")
-            self.sleepeentry.insert(0, "10")
+            self.sleepDayeentry.insert(0, "10")
+            self.sleepNighteentry.insert(0, "30")
 
         self.window.mainloop()
