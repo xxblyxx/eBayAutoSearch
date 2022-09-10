@@ -24,6 +24,7 @@ global con
 MAX_RETRIES = 5
 RESTART_TIME = 10
 MAX_SEARCHRESULTS = 25 #number of search results to process scan
+ALIVE_TIME = 30 #when alive_time reached, notification will be sent to telegram indicating scraper is still running
 
 class TooManyConnectionRetries(Exception):
     pass
@@ -141,9 +142,11 @@ def sendTelegramMessage(apikey, chatid, msg):
         except telebot.apihelper.ApiTelegramException:
             pass
 
-def scraper(url, apikey, chatid, sleep):
+def scraper(url, apikey, chatid, sleepDay, sleepNight):
     #send telegram message starting scan service
     sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
+
+    serviceStatusCounter = 0
 
     global con
     cursordb = con.cursor()
@@ -157,8 +160,8 @@ def scraper(url, apikey, chatid, sleep):
                 products = get_index_data(get_page(url))
             except requests.exceptions.ConnectionError:
                 print("Connection Error: Please check your internet connection")
-                print("Retrying in " + sleep + " seconds (" + str(i) + "/" + str(MAX_RETRIES) + ")")
-                time.sleep(int(sleep))
+                print("Retrying in " + sleepDay + " seconds (" + str(i) + "/" + str(MAX_RETRIES) + ")")
+                time.sleep(int(sleepDay))
                 continue
             else:
                 break
@@ -211,9 +214,17 @@ def scraper(url, apikey, chatid, sleep):
                 pass
         con.commit()
         print(str(datetime.now()) + ' - Refresh complete, sleeping...')
-        # Wait before repeting the process
-        time.sleep(int(sleep))
-
+        serviceStatusCounter+=1
+        if serviceStatusCounter >= ALIVE_TIME:
+            sendTelegramMessage(apikey,chatid,str(datetime.now()) + ' - Scraper still running.')
+            serviceStatusCounter=0
+        #when during day hours, wait for sleepDay, else use sleepNight
+        currentHour = datetime.now().hour
+        if(currentHour >= 5 and currentHour<= 22):
+            # Wait before repeting the process
+            time.sleep(int(sleepDay))
+        else:
+            time.sleep(int(sleepNight))
 
 def startup(filename_path):
     global con
@@ -225,7 +236,8 @@ def startup(filename_path):
         apikey = config["telegramAPIKEY"]
         chatid = config["telegramCHATID"]
         dbname = config["databaseFile"]
-        sleep = config["sleep"]
+        sleepDay = config["sleepDay"]
+        sleepNight = config["sleepNight"]
 
     config_file.close()
 
@@ -239,7 +251,7 @@ def startup(filename_path):
     signal(SIGINT, exit_handler)
 
     # Start the scraper
-    scraper(url, apikey, chatid, sleep)
+    scraper(url, apikey, chatid, sleepDay, sleepNight)
 
 
 if __name__ == '__main__':
