@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
+from urllib.request import Request, urlopen
 
 import requests
 import telebot
@@ -60,6 +61,20 @@ def get_page(url):
 
     return soup
 
+def get_page_OF(url):
+    print('OfferUp Getting search results...')
+    req = Request(url, headers={'User-Agent': 'XYZ/3.0'})
+    
+    response = urlopen(req, timeout=10).read()
+
+    # If error in reaching Ebay via provided url, throw a custom error message
+    if response is None:
+        print('Server responded:') #TODO need to return response code
+    else:
+        soup = BeautifulSoup(response, 'lxml')
+
+    return soup
+
 # Returns a dictionary containing the title, price, currency, and number of item sold given an item's url link
 def get_detail_data(soup, url):
     # Get title of item
@@ -103,6 +118,46 @@ def get_detail_data(soup, url):
 
     return data
 
+def get_detail_data_OF(soup, url):
+    # Get title of item
+    try:
+        title = soup.find('h2', {'class':'MuiTypography-h4'}).get_text(strip=True)
+    except:
+        title = 'exceptionDetected'
+
+    # Get price of item
+    try:
+        p = soup.find('p', {'class':'MuiTypography-displayInline'}).text.strip()
+        currency = p[0]
+        price = p[1:]
+    except:
+        currency = ''
+        price = 'exceptionDetected'
+
+    # Get # of items sold (note, this is inconsistent)
+    try:
+        sold = '0' #not available on offerup
+    except:
+        sold = ''
+
+    # Get ID
+    try:
+        parsed_url = urlparse(url)
+        id = parsed_url.path.split('/')[3]
+    except:
+        id = 0
+    
+    data = {
+        'title': title,
+        'price': price,
+        'currency': currency,
+        'total_sold': sold,
+        'url': url,
+        'id': id
+    }
+
+    return data
+
 def get_index_data(soup):
     try:
         links = soup.find_all('a', class_='s-item__link')
@@ -111,6 +166,21 @@ def get_index_data(soup):
 
     urls = [item.get('href') for item in links]
     urls = urls[1:]
+
+    return urls
+
+def get_index_data_OF(soup):
+    try:
+        print('processing OF links')
+        links = soup.find_all('a', class_='jss193 jss194 jss365 jss362')
+        # print(links[0])
+        print('end of get index')
+    except:
+        print('get index data OF error')
+        links = []
+
+    urls = ['https://www.offerup.com'+item.get('href') for item in links]
+    urls = urls[0:]
 
     return urls
 
@@ -142,9 +212,15 @@ def sendTelegramMessage(apikey, chatid, msg):
         except telebot.apihelper.ApiTelegramException:
             pass
 
-def scraper(url, apikey, chatid, sleepDay, sleepNight):
+def scraper(keyword, apikey, chatid, sleepDay, sleepNight):
     #send telegram message starting scan service
-    sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
+    eBayURL = 'https://www.ebay.com/sch/i.html?_from=R40&_nkw=%s&_sacat=0&_sop=10&_ipg=200' % (keyword)
+    offerUpURL = 'https://offerup.com/search?q=%s&DELIVERY_FLAGS=p' % (keyword)
+
+    print('eBayURL=',eBayURL)
+    print('OfferUpURL=',offerUpURL)
+    
+    #UNDO THIS WHEN REAL sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
 
     serviceStatusCounter = 0
 
@@ -157,7 +233,10 @@ def scraper(url, apikey, chatid, sleepDay, sleepNight):
         # If it raises an connectionerror, it will retry a few times
         for i in range(MAX_RETRIES):
             try:
-                products = get_index_data(get_page(url))
+                print(eBayURL)
+                products = get_index_data(get_page(eBayURL))
+                print(offerUpURL)
+                offerUpProducts = get_index_data_OF(get_page_OF(offerUpURL))
             except requests.exceptions.ConnectionError:
                 print("Connection Error: Please check your internet connection")
                 print("Retrying in " + sleepDay + " seconds (" + str(i) + "/" + str(MAX_RETRIES) + ")")
@@ -170,6 +249,7 @@ def scraper(url, apikey, chatid, sleepDay, sleepNight):
             raise TooManyConnectionRetries
 
         #BeautifulSoupImplementation
+        #eBay getting data
         productList =[]
         for link in products[0:MAX_SEARCHRESULTS]:
             
@@ -180,6 +260,18 @@ def scraper(url, apikey, chatid, sleepDay, sleepNight):
                 print('Hitting Ebay for data...')
                 data = get_detail_data(get_page(link), link)
                 productList.append(data)
+
+        #offerUp getting data
+        OfferUpProductList =[]
+        for link in offerUpProducts[0:MAX_SEARCHRESULTS]:
+            
+            #check link to see if in DB, if not get detail
+            parsed_url = urlparse(link)
+            itemID = parsed_url.path.split('/')[3]
+            if (itemIDExistInDB(itemID) == False):
+                print('Hitting OfferUp for data...')
+                data = get_detail_data_OF(get_page_OF(link), link)
+                OfferUpProductList.append(data)
 
         # Insert every id into the database table
         # If the id is already present on the table, cursor.execute() will raise an sqlite3.IntegrityError exception which will skip the process of sending the link
@@ -195,12 +287,12 @@ def scraper(url, apikey, chatid, sleepDay, sleepNight):
                 print(prodstr['title'])
                 print(prodstr['id'])
                 print(prodstr['price'])
-                #print(prodstr['url'])
 
                 # If the user specified a telegram bot apikey + chatid, it will send the previously printed list as a text message (only if the previous line didn't produce an exception)
                 if apikey != "" and chatid != "":
                     try:
                         telebot.TeleBot(apikey, threaded=False).send_message(chatid,
+                                                            'EBAY -- ' +
                                                              str(datetime.now())
                                                              + "\n" + prodstr['title'] 
                                                              + "\n" + prodstr['price']
@@ -213,6 +305,38 @@ def scraper(url, apikey, chatid, sleepDay, sleepNight):
                 # When this exception rises, the program will just continue to the next element of the for-loop
                 pass
         con.commit()
+        
+        #process offerup productlist
+        for prodstr_OF in OfferUpProductList:
+            try:
+                # Insert the id and the timestamp
+                cursordb.execute("INSERT INTO identifiers(id,listingDate) VALUES(?,?)",
+                                (prodstr_OF['id'], datetime.now()))
+
+                # Print the listing url based on the identifier  
+                print('Found new item')             
+                print(prodstr_OF['title'])
+                print(prodstr_OF['id'])
+                print(prodstr_OF['price'])
+
+                # If the user specified a telegram bot apikey + chatid, it will send the previously printed list as a text message (only if the previous line didn't produce an exception)
+                if apikey != "" and chatid != "":
+                    try:
+                        telebot.TeleBot(apikey, threaded=False).send_message(chatid,
+                                                            'OfferUP -- ' +
+                                                             str(datetime.now())
+                                                             + "\n" + prodstr_OF['title'] 
+                                                             + "\n" + prodstr_OF['price']
+                                                             + "\n" + prodstr_OF['url'])
+                        # Telegram API limits the number of messages per second so we need to wait a little bit
+                        time.sleep(0.5)
+                    except telebot.apihelper.ApiTelegramException:
+                        pass
+            except sqlite3.IntegrityError:
+                # When this exception rises, the program will just continue to the next element of the for-loop
+                pass
+        con.commit()
+
         print(str(datetime.now()) + ' - Refresh complete, sleeping...')
         serviceStatusCounter+=1
         if serviceStatusCounter >= ALIVE_TIME:
@@ -232,7 +356,7 @@ def startup(filename_path):
     # User must specify the file path as an argument when running this script
     with open(filename_path) as config_file:
         config = json.load(config_file)
-        url = config["url"]
+        keyword = config["keyword"]
         apikey = config["telegramAPIKEY"]
         chatid = config["telegramCHATID"]
         dbname = config["databaseFile"]
@@ -244,14 +368,14 @@ def startup(filename_path):
     # Connect to db and create the table (if not exists)
     con = sql_connection(dbname)
     cursor = con.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS identifiers(id VARCHAR(12) PRIMARY KEY, listingDate timestamp)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS identifiers(id VARCHAR(50) PRIMARY KEY, listingDate timestamp)")
     con.commit()
 
     # Start the exit handler
     signal(SIGINT, exit_handler)
 
     # Start the scraper
-    scraper(url, apikey, chatid, sleepDay, sleepNight)
+    scraper(keyword, apikey, chatid, sleepDay, sleepNight)
 
 
 if __name__ == '__main__':

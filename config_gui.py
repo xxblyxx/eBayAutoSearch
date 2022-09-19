@@ -9,7 +9,7 @@ def cancelclick():
 
 class GUI:
     def okclick(self):
-        data = {"url": self.urlentry.get(),
+        data = {"keyword": self.urlentry.get(),
                 "telegramAPIKEY": self.apikeyentry.get(),
                 "telegramCHATID": self.chatidentry.get(),
                 "databaseFile": self.databaseentry.get(),
@@ -27,7 +27,7 @@ class GUI:
         self.window = tk.Tk()
         self.window.geometry('905x600')
 
-        urllabel = tk.Label(text="url")
+        keywordlabel = tk.Label(text="keyword")
         self.urlentry = tk.Entry(width=100, justify=tk.CENTER)
 
         databaselabel = tk.Label(text="databaseFile")
@@ -48,7 +48,7 @@ class GUI:
         okbutton = tk.Button(self.window, text="OK", command=self.okclick)
         cancelbutton = tk.Button(self.window, text="Cancel", command=cancelclick)
 
-        urllabel.grid(column=0, row=0)
+        keywordlabel.grid(column=0, row=0)
         self.urlentry.grid(column=0, row=1)
 
         databaselabel.grid(column=0, row=2)
@@ -72,7 +72,7 @@ class GUI:
         if os.path.isfile(file_name):
             with open(file_name) as config_file:
                 config = json.load(config_file)
-                self.urlentry.insert(0, config["url"])
+                self.urlentry.insert(0, config["keyword"])
                 self.apikeyentry.insert(0, config["telegramAPIKEY"])
                 self.chatidentry.insert(0, config["telegramCHATID"])
                 self.databaseentry.insert(0, config["databaseFile"])
