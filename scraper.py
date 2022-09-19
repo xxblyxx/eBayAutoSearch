@@ -220,7 +220,7 @@ def scraper(keyword, apikey, chatid, sleepDay, sleepNight):
     print('eBayURL=',eBayURL)
     print('OfferUpURL=',offerUpURL)
     
-    #UNDO THIS WHEN REAL sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
+    sendTelegramMessage(apikey, chatid, "Starting EBay scraper - " + str(datetime.now()))
 
     serviceStatusCounter = 0
 
