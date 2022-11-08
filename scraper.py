@@ -24,8 +24,9 @@ global con
 
 MAX_RETRIES = 5
 RESTART_TIME = 10
-MAX_SEARCHRESULTS = 25 #number of search results to process scan
+MAX_SEARCHRESULTS = 1 #number of search results to process scan
 ALIVE_TIME = 30 #when alive_time reached, notification will be sent to telegram indicating scraper is still running
+DEBUG=True
 
 class TooManyConnectionRetries(Exception):
     pass
@@ -76,21 +77,27 @@ def get_page_OF(url):
     return soup
 
 # Returns a dictionary containing the title, price, currency, and number of item sold given an item's url link
-def get_detail_data(soup, url):
+def get_detail_data(soup, url, itemID):
     # Get title of item
     try:
         title = soup.find('h1', {'class':'x-item-title__mainTitle'}).get_text(strip=True)
+        if DEBUG:
+            print(title)
     except:
         title = 'exceptionDetected'
 
     # Get price of item
     try:
-        p = soup.find('span', id='prcIsum').text.strip()
+        p = soup.find('div', {'class':'x-price-primary'}).text.strip()
         currency, price = p.split(' ')
+        if DEBUG:
+            print(price)
     except:
         try:
             p = soup.find('span', id='prcIsum_bidPrice').text.strip()
             currency, price = p.split(' ')
+            if DEBUG:
+                print(price)
         except:
             currency = ''
             price = 'exceptionDetected'
@@ -98,12 +105,17 @@ def get_detail_data(soup, url):
     # Get # of items sold (note, this is inconsistent)
     try:
         sold = soup.find('span', class_='vi-qtyS').find('a').text.strip().split(' ')[0].replace('\xa0', '')
+        if DEBUG:
+            print(sold)
     except:
         sold = ''
 
     # Get ID
     try:
-        id = soup.find('div', id='descItemNumber').get_text(strip=True)
+        # ebay buried this passing from parent method id = soup.find('div', id='descItemNumber').get_text(strip=True)
+        id = itemID
+        if DEBUG:
+            print(id)
     except:
         id = 0
     
@@ -115,13 +127,16 @@ def get_detail_data(soup, url):
         'url': url,
         'id': id
     }
-
+    if DEBUG:
+        print(data)
     return data
 
 def get_detail_data_OF(soup, url):
     # Get title of item
     try:
         title = soup.find('h2', {'class':'MuiTypography-h4'}).get_text(strip=True)
+        if (DEBUG):
+            print(title)
     except:
         title = 'exceptionDetected'
 
@@ -130,6 +145,8 @@ def get_detail_data_OF(soup, url):
         p = soup.find('p', {'class':'MuiTypography-displayInline'}).text.strip()
         currency = p[0]
         price = p[1:]
+        if (DEBUG):
+            print(price)
     except:
         currency = ''
         price = 'exceptionDetected'
@@ -137,6 +154,8 @@ def get_detail_data_OF(soup, url):
     # Get # of items sold (note, this is inconsistent)
     try:
         sold = '0' #not available on offerup
+        if (DEBUG):
+            print(sold)
     except:
         sold = ''
 
@@ -144,6 +163,8 @@ def get_detail_data_OF(soup, url):
     try:
         parsed_url = urlparse(url)
         id = parsed_url.path.split('/')[3]
+        if (DEBUG):
+            print(id)
     except:
         id = 0
     
@@ -155,6 +176,9 @@ def get_detail_data_OF(soup, url):
         'url': url,
         'id': id
     }
+    if (DEBUG):
+        print("OfferUpData=")
+        print(data)
 
     return data
 
@@ -172,7 +196,9 @@ def get_index_data(soup):
 def get_index_data_OF(soup):
     try:
         print('processing OF links')
-        links = soup.find_all('a', class_='jss193 jss194 jss365 jss362')
+        links = soup.find_all('a', class_='jss197 jss198 jss369 jss366') # if offerup breaks, look for new jss classes
+        if DEBUG:
+            print(links)
         # print(links[0])
         print('end of get index')
     except:
@@ -258,7 +284,7 @@ def scraper(keyword, apikey, chatid, sleepDay, sleepNight):
             itemID = parsed_url.path.split('/')[2]
             if (itemIDExistInDB(itemID) == False):
                 print('Hitting Ebay for data...')
-                data = get_detail_data(get_page(link), link)
+                data = get_detail_data(get_page(link), link, itemID)
                 productList.append(data)
 
         #offerUp getting data
